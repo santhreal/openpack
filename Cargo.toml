@@ -1,28 +1,60 @@
 [package]
-exclude = ["target/"]
+exclude = ["target/", "BACKLOG.md"]
 name = "openpack"
-version = "0.2.1"
+version = "0.2.4"
 edition = "2021"
 rust-version = "1.85"
 description = "Safe archive-reader for ZIP-derived formats (ZIP, CRX, JAR, APK, IPA) with BOM-safe checks."
 readme = "README.md"
-license = "MIT"
-repository = "https://github.com/santhsecurity/openpack"
-authors = ["Corum Collective LLC <engineering@corumcollective.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/santhreal/openpack"
+homepage = "https://santh.dev"
+authors = ["Santh Project <contact@santh.dev>"]
 keywords = ["zip", "archive", "waf", "security", "manifest"]
 categories = ["compression", "filesystem", "parser-implementations"]
 
 [dependencies]
-zip = "2"
-memmap2 = "0.9"
-serde = { version = "1", features = ["derive"] }
-toml = "0.8"
-thiserror = "2"
-percent-encoding = "2"
-crc32fast = "1"
+zip = "=8.5.1"
+flate2 = "=1.1.5"
+memmap2 = "=0.9.10"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "1"
+toml = "=0.8.23"
+thiserror = "=2.0.18"
+percent-encoding = "=2.3.2"
+crc32fast = "=1.5.0"
 
 [dev-dependencies]
-tempfile = "3"
+proptest = "=1.9.0"
+tempfile = "=3.27.0"
+
+[[test]]
+name = "unit"
+path = "tests/unit/mod.rs"
+
+[[test]]
+name = "adversarial"
+path = "tests/adversarial.rs"
+
+[[test]]
+name = "concurrent"
+path = "tests/concurrent/mod.rs"
+
+[[test]]
+name = "property"
+path = "tests/property/mod.rs"
+
+[[test]]
+name = "campaign_wave2_proptest"
+path = "tests/campaign_wave2_proptest.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration/mod.rs"
+
+[[test]]
+name = "regression"
+path = "tests/regression/mod.rs"
 
 [features]
 default = ["zip"]
@@ -30,3 +62,12 @@ zip = []
 apk = []
 crx = []
 ipa = []
+
+[workspace]
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+todo = "deny"
+unimplemented = "deny"
+panic = "deny"

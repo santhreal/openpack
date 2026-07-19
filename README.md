@@ -1,24 +1,14 @@
 # openpack
 
+Part of [Santh](https://santh.dev) - open source Rust security and infrastructure tooling. Follow [@SanthProject](https://x.com/SanthProject) on X.
+
 Safe archive reader for ZIP-derived container formats. It reads ZIP, JAR, APK, IPA, and CRX files with mandatory guardrails against Zip Slip, zip bombs, and resource exhaustion.
 
 ```rust
-use openpack::{OpenPack, Limits};
+use openpack::OpenPack;
 
-let limits = Limits {
-    max_archive_size: 256 * 1024 * 1024,
-    max_entry_uncompressed_size: 50 * 1024 * 1024,
-    max_total_uncompressed_size: 128 * 1024 * 1024,
-    max_entries: 2048,
-    max_compression_ratio: 100.0,
-};
-
-let pack = OpenPack::open("app.apk", limits).unwrap();
-
-for entry in pack.entries().unwrap() {
-    println!("{} ({} bytes)", entry.name, entry.uncompressed_size);
-}
-
+let pack = OpenPack::open_default("app.apk").unwrap();
+for entry in pack.entries().unwrap() { println!("{}", entry.name); }
 let bytes = pack.read_entry("AndroidManifest.xml").unwrap();
 ```
 

@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use crate::types::OpenPackError;
 
+#[allow(dead_code)]
 pub(crate) fn crx_zip_payload_range(bytes: &[u8]) -> Result<Range<usize>, OpenPackError> {
     if bytes.len() < 12 {
         return Err(OpenPackError::InvalidArchive("CRX header too short".into()));

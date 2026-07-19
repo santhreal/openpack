@@ -1,7 +1,7 @@
+use memmap2::Mmap;
 use std::fmt::{self, Display};
 use std::io;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -11,6 +11,7 @@ compile_error!("openpack needs at least one feature enabled");
 
 /// Archive format detected from path extension or CRX magic bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ArchiveFormat {
     /// Standard ZIP archive format.
     Zip,
@@ -154,9 +155,47 @@ pub struct ArchiveEntry {
 #[derive(Debug)]
 pub struct OpenPack {
     pub(crate) path: PathBuf,
-    pub(crate) bytes: Arc<[u8]>,
+    pub(crate) mmap: Mmap,
     pub(crate) format: ArchiveFormat,
     pub(crate) limits: Limits,
+}
+
+/// High-signal summary fields from a browser extension `manifest.json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExtensionManifestSummary {
+    /// Human-readable extension name.
+    pub name: Option<String>,
+    /// Version string.
+    pub version: Option<String>,
+    /// Manifest version.
+    pub manifest_version: Option<u64>,
+    /// Declared permissions.
+    pub permissions: Vec<String>,
+    /// Declared host permissions.
+    pub host_permissions: Vec<String>,
+    /// Background or service worker scripts.
+    pub background_scripts: Vec<String>,
+    /// Declared content script paths.
+    pub content_scripts: Vec<String>,
+}
+
+/// High-signal summary fields from `package.json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageJsonSummary {
+    /// Package name.
+    pub name: Option<String>,
+    /// Package version.
+    pub version: Option<String>,
+    /// Description field.
+    pub description: Option<String>,
+    /// Main entry point.
+    pub main: Option<String>,
+    /// Module entry point.
+    pub module: Option<String>,
+    /// Browser field when present.
+    pub browser: Option<String>,
+    /// Dependency names.
+    pub dependencies: Vec<String>,
 }
 
 /// Parsed Android manifest data from an APK file.
@@ -238,6 +277,7 @@ pub struct IpaInfoPlist {
 /// extracting archive contents. Each variant includes a helpful message
 /// explaining what went wrong and how to fix it.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum OpenPackError {
     /// The provided configuration is invalid.
     #[error("invalid openpack configuration: {0}. Fix: use positive limits and keep max archive and entry sizes consistent.")]
