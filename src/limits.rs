@@ -110,18 +110,23 @@ impl Limits {
 
     /// Loads the builtin limits compiled into the binary.
     ///
+    /// # Panics
+    ///
+    /// Panics if the bundled `config/limits.toml` is invalid. The config is
+    /// trusted; a parse failure is a packaging bug and must be loud.
+    ///
     /// # Examples
     ///
     /// ```
     /// use openpack::Limits;
     /// let limits = Limits::builtin();
     /// ```
+    #[allow(clippy::expect_used)] // fail-loud on a trusted bundled config
     pub fn builtin() -> Self {
         // The bundled config is trusted and must be valid; if it is corrupted,
         // fail loudly so the packaging error is caught immediately rather than
         // silently degrading to defaults.
-        Self::from_toml(include_str!("../config/limits.toml")).expect(
-            "builtin config/limits.toml is invalid; fix the bundled configuration",
-        )
+        Self::from_toml(include_str!("../config/limits.toml"))
+            .expect("builtin config/limits.toml is invalid; fix the bundled configuration")
     }
 }

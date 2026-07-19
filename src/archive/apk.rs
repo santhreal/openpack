@@ -43,7 +43,9 @@ impl OpenPack {
                         // cannot be mistaken for the root bundle's plist.
                         let parts: Vec<&str> = inner.split('/').collect();
                         parts.len() == 2
-                            && parts[0].ends_with(".app")
+                            && std::path::Path::new(parts[0])
+                                .extension()
+                                .is_some_and(|ext| ext.eq_ignore_ascii_case("app"))
                             && parts[1] == "Info.plist"
                     })
                     .map(|_| entry.name.clone())
@@ -73,13 +75,18 @@ mod tests {
     #[cfg(feature = "apk")]
     #[test]
     fn apk_manifest_duplicate_attribute_is_first_match() {
-        let archive = Scratch::new("app.apk");
-        let manifest = r#"<manifest package="com.evil.app" package="com.real.app" versionName="1.0"></manifest>"#;
         use crate::archive::test_helpers::write_zip;
         use zip::CompressionMethod;
+
+        let archive = Scratch::new("app.apk");
+        let manifest = r#"<manifest package="com.evil.app" package="com.real.app" versionName="1.0"></manifest>"#;
         write_zip(
             &archive.path,
-            &[("AndroidManifest.xml", manifest.as_bytes(), CompressionMethod::Stored)],
+            &[(
+                "AndroidManifest.xml",
+                manifest.as_bytes(),
+                CompressionMethod::Stored,
+            )],
         );
         let pack = OpenPack::open_default(&archive.path).expect("open");
         let parsed = pack.read_android_manifest().expect("manifest");

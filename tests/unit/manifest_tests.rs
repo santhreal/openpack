@@ -1,6 +1,6 @@
-use openpack::summarize_package_json;
 #[cfg(feature = "crx")]
 use openpack::summarize_extension_manifest;
+use openpack::summarize_package_json;
 
 mod tests {
     use super::*;
@@ -52,9 +52,6 @@ mod tests {
         assert_eq!(summary.permissions, vec!["storage", "activeTab"]);
         assert_eq!(summary.host_permissions, vec!["*://*.example.com/*"]);
         assert_eq!(summary.background_scripts, vec!["bg.js"]);
-        assert_eq!(
-            summary.content_scripts,
-            vec!["content.js".to_string()]
-        );
+        assert_eq!(summary.content_scripts, vec!["content.js".to_string()]);
     }
 }

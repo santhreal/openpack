@@ -60,7 +60,7 @@ pub(crate) fn deflate_input_bytes_used(compressed: &[u8]) -> Option<u64> {
             .ok()?;
         let total_in = decompress.total_in();
         let total_out = decompress.total_out();
-        input = &compressed[total_in as usize..];
+        input = &compressed[usize::try_from(total_in).ok()?..];
         match status {
             Status::StreamEnd => return Some(total_in),
             Status::Ok | Status::BufError => {
@@ -184,7 +184,9 @@ pub(crate) fn reject_duplicate_entry_name(
     }
 }
 
-pub(crate) fn entry_meta<R: std::io::Read + ?Sized>(file: &mut ZipFile<'_, R>) -> Result<ArchiveEntry, OpenPackError> {
+pub(crate) fn entry_meta<R: std::io::Read + ?Sized>(
+    file: &mut ZipFile<'_, R>,
+) -> Result<ArchiveEntry, OpenPackError> {
     reject_special_file_entry(file)?;
     validate_entry_name_raw(file.name_raw())?;
     Ok(ArchiveEntry {
@@ -196,7 +198,9 @@ pub(crate) fn entry_meta<R: std::io::Read + ?Sized>(file: &mut ZipFile<'_, R>) -
     })
 }
 
-pub(crate) fn reject_special_file_entry<R: std::io::Read + ?Sized>(file: &ZipFile<'_, R>) -> Result<(), OpenPackError> {
+pub(crate) fn reject_special_file_entry<R: std::io::Read + ?Sized>(
+    file: &ZipFile<'_, R>,
+) -> Result<(), OpenPackError> {
     const S_IFMT: u32 = 0o170000;
     const S_IFLNK: u32 = 0o120000;
     const S_IFBLK: u32 = 0o060000;
@@ -271,11 +275,13 @@ mod tests {
         // a fresh buffer even when the input slice has been fully consumed.
         let uncompressed = vec![b'a'; 64 * 1024];
         let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&uncompressed).expect("write uncompressed");
+        encoder
+            .write_all(&uncompressed)
+            .expect("write uncompressed");
         let compressed = encoder.finish().expect("finish compression");
 
-        let used = deflate_input_bytes_used(&compressed)
-            .expect("deflate_input_bytes_used must succeed");
+        let used =
+            deflate_input_bytes_used(&compressed).expect("deflate_input_bytes_used must succeed");
         assert_eq!(used, compressed.len() as u64);
     }
 }

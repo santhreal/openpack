@@ -225,22 +225,19 @@ mod tests {
     #[test]
     fn xml_attr_ignores_comments_and_takes_last_duplicate() {
         use super::extract_xml_attr;
-        let xml = r#"<?xml version=\"1.0\"?><!-- package=\"com.evil.app\" --><manifest package=\"com.evil.app\" package=\"com.real.app\" versionName=\"1.0\"></manifest>"#;
+        let xml = r#"<?xml version="1.0"?><!-- package="com.evil.app" --><manifest package="com.evil.app" package="com.real.app" versionName="1.0"></manifest>"#;
         assert_eq!(
             extract_xml_attr(xml, "package").as_deref(),
             Some("com.real.app")
         );
-        assert_eq!(
-            extract_xml_attr(xml, "versionName").as_deref(),
-            Some("1.0")
-        );
+        assert_eq!(extract_xml_attr(xml, "versionName").as_deref(), Some("1.0"));
     }
 
     #[cfg(feature = "apk")]
     #[test]
     fn block_attr_scoped_to_tag_not_later_elements() {
         use super::extract_block_attr;
-        let xml = r#"<manifest package=\"com.example.app\"><uses-sdk android:targetSdkVersion=\"30\"/><activity android:minSdkVersion=\"21\"></activity></manifest>"#;
+        let xml = r#"<manifest package="com.example.app"><uses-sdk android:targetSdkVersion="30"/><activity android:minSdkVersion="21"></activity></manifest>"#;
         assert_eq!(
             extract_block_attr(xml, "uses-sdk", "android:minSdkVersion").as_deref(),
             None
@@ -255,7 +252,7 @@ mod tests {
     #[test]
     fn plist_key_value_scoped_to_immediate_sibling() {
         use super::parse_plist_key;
-        let xml = r#"<plist><dict><key>CFBundleIdentifier</key><string>com.example.bundle</string><key>CFBundleExecutable</key><string>Binary</string></dict></plist>"#;
+        let xml = "<plist><dict><key>CFBundleIdentifier</key><string>com.example.bundle</string><key>CFBundleExecutable</key><string>Binary</string></dict></plist>";
         assert_eq!(
             parse_plist_key(xml, "CFBundleIdentifier").as_deref(),
             Some("com.example.bundle")
@@ -270,7 +267,7 @@ mod tests {
     #[test]
     fn plist_key_missing_returns_none() {
         use super::parse_plist_key;
-        let xml = r#"<plist><dict><key>CFBundleIdentifier</key><string>com.example.bundle</string></dict></plist>"#;
+        let xml = "<plist><dict><key>CFBundleIdentifier</key><string>com.example.bundle</string></dict></plist>";
         assert_eq!(parse_plist_key(xml, "CFBundleExecutable"), None);
     }
 }

@@ -9,6 +9,7 @@ macro_rules! wave2_openpack {
             #![proptest_config(ProptestConfig::with_cases(32))]
             #[test]
             fn $name($bind in prop::collection::vec(any::<u8>(), 0..256)) {
+                let _ = &$bind;
                 $body
             }
         })+

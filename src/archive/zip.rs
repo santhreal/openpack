@@ -3,9 +3,9 @@ use std::fs::{self, OpenOptions};
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 
+use zip::read::ZipFile;
 use zip::CompressionMethod;
 use zip::ZipArchive;
-use zip::read::ZipFile;
 
 #[cfg(feature = "crx")]
 use crate::crx::crx_zip_payload_range;
@@ -535,18 +535,16 @@ mod tests {
         let payload = vec![b'a'; 64 * 1024];
         write_zip(
             &archive.path,
-            &[(
-                "large.bin",
-                payload.as_slice(),
-                CompressionMethod::Deflated,
-            )],
+            &[("large.bin", payload.as_slice(), CompressionMethod::Deflated)],
         );
         let loose = Limits {
             max_compression_ratio: 1000.0,
             ..Limits::default()
         };
         let pack = OpenPack::open(&archive.path, loose).expect("open");
-        let data = pack.read_entry("large.bin").expect("read large deflated entry");
+        let data = pack
+            .read_entry("large.bin")
+            .expect("read large deflated entry");
         assert_eq!(data, payload);
     }
 

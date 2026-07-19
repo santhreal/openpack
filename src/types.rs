@@ -53,6 +53,7 @@ impl Display for ArchiveFormat {
 /// assert!(limits.max_archive_size > 0);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_field_names)] // max_* is the limits vocabulary
 pub struct Limits {
     /// Maximum size of the archive file itself in bytes.
     ///
