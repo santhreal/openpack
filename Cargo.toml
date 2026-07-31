@@ -1,7 +1,7 @@
 [package]
 exclude = ["target/", "BACKLOG.md"]
 name = "openpack"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 rust-version = "1.85"
 description = "Safe archive-reader for ZIP-derived formats (ZIP, CRX, JAR, APK, IPA) with BOM-safe checks."
@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/santhreal/openpack"
 homepage = "https://santh.dev"
 authors = ["Santh Project <contact@santh.dev>"]
-keywords = ["zip", "archive", "waf", "security", "manifest"]
+keywords = ["zip", "archive", "security", "parser", "apk"]
 categories = ["compression", "filesystem", "parser-implementations"]
 
 [dependencies]

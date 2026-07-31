@@ -90,7 +90,8 @@ mod tests {
         );
         let pack = OpenPack::open_default(&archive.path).expect("open");
         let parsed = pack.read_android_manifest().expect("manifest");
-        // BUG: naive string matching extracts the FIRST (malicious) package attribute
+        // Duplicate attributes resolve to the LAST occurrence so the real
+        // package name wins over a decoy placed first.
         assert_eq!(
             parsed.package, "com.real.app",
             "Should extract the real package name, not the first duplicate"

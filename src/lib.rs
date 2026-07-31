@@ -19,16 +19,17 @@
 #![cfg_attr(test, allow(clippy::expect_used, clippy::unwrap_used, clippy::panic))]
 //! Archive reader for ZIP-derived container formats with safe-by-default extraction checks.
 
-mod archive;
-mod crx;
-mod format;
-mod limits;
-mod manifest;
-mod security;
-mod types;
+pub mod archive;
+pub mod crx;
+pub mod format;
+pub mod limits;
+pub mod manifest;
+pub mod security;
+pub mod types;
 
 pub use types::*;
 
 #[cfg(feature = "crx")]
 pub use manifest::summarize_extension_manifest;
 pub use manifest::summarize_package_json;
+

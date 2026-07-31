@@ -135,19 +135,28 @@ impl OpenPack {
         // Defense in depth: enforce the compression ratio against the actual
         // deflate input bytes, not forged local-header compressed_size fields.
         // Stored entries cannot expand, so their metadata size is sufficient.
-        let compressed_for_ratio = if file.compression() == CompressionMethod::Stored {
-            entry.compressed_size
-        } else if let Some(start) = file.data_start() {
-            let zip_data = self.zip_data()?;
-            let start = usize::try_from(start).unwrap_or(zip_data.len());
-            deflate_input_bytes_used(&zip_data[start..]).ok_or_else(|| {
-                OpenPackError::InvalidArchive(format!(
-                    "entry '{}' failed deflate validation; compressed data may be malformed or truncated",
-                    name
-                ))
-            })?
-        } else {
-            entry.compressed_size
+        // Non-deflate methods (bzip2, zstd, xz, lzma, deflate64) cannot be
+        // measured with a deflate parser: running one on their streams
+        // misreports valid archives as malformed, so they fall back to the
+        // central-directory compressed_size. The decompressed byte count is
+        // still hard-capped above, so memory stays bounded regardless.
+        let compressed_for_ratio = match file.compression() {
+            CompressionMethod::Stored => entry.compressed_size,
+            CompressionMethod::Deflated => {
+                if let Some(start) = file.data_start() {
+                    let zip_data = self.zip_data()?;
+                    let start = usize::try_from(start).unwrap_or(zip_data.len());
+                    deflate_input_bytes_used(&zip_data[start..]).ok_or_else(|| {
+                        OpenPackError::InvalidArchive(format!(
+                            "entry '{}' failed deflate validation; compressed data may be malformed or truncated",
+                            name
+                        ))
+                    })?
+                } else {
+                    entry.compressed_size
+                }
+            }
+            _ => entry.compressed_size,
         };
         let actual_ratio = compression_ratio(data.len() as u64, compressed_for_ratio);
         if actual_ratio > self.limits.max_compression_ratio {
@@ -478,7 +487,9 @@ mod tests {
         let file_path = tmp.path().join("nested");
         std::fs::write(&file_path, b"not a directory").expect("write file");
 
-        // BUG: should reject an existing regular file, but returns Ok(())
+        // An existing regular file at a directory path must be rejected:
+        // creating children under it would otherwise silently fail or follow
+        // an attacker-planted file.
         let result = create_dir_all_no_symlink(&file_path);
         assert!(
             result.is_err(),
@@ -525,6 +536,24 @@ mod tests {
             pack.entries(),
             Err(OpenPackError::LimitExceeded(_))
         ));
+    }
+
+    #[test]
+    fn read_entry_bzip2_entry_is_not_rejected_as_malformed() {
+        // Regression test: read_zip_file used to run the deflate-stream
+        // validator on EVERY non-Stored entry, so any valid bzip2/zstd/xz
+        // archive was rejected with InvalidArchive("failed deflate
+        // validation") even though the zip crate can decompress it. The
+        // deflate parser must only run on Deflated entries.
+        let archive = Scratch::new("bzip2.zip");
+        let payload = b"hello bzip2 world, hello bzip2 world, hello bzip2 world";
+        write_zip(
+            &archive.path,
+            &[("a.txt", payload.as_slice(), CompressionMethod::Bzip2)],
+        );
+        let pack = OpenPack::open_default(&archive.path).expect("open");
+        let data = pack.read_entry("a.txt").expect("read bzip2 entry");
+        assert_eq!(data, payload.as_slice());
     }
 
     #[test]
