@@ -101,17 +101,19 @@ pub(crate) fn enforce_entry_count_limit(
 }
 
 /// Strips UTF-8 Byte Order Mark (BOM) `0xEF 0xBB 0xBF` from raw bytes if present.
-pub(crate) fn strip_bom(bytes: &[u8]) -> &[u8] {
-    if bytes.starts_with(b"\xEF\xBB\xBF") {
-        &bytes[3..]
-    } else {
-        bytes
+pub(crate) fn strip_bom(mut bytes: &[u8]) -> &[u8] {
+    while bytes.starts_with(b"\xEF\xBB\xBF") {
+        bytes = &bytes[3..];
     }
+    bytes
 }
 
 /// Strips UTF-8 Byte Order Mark (BOM) `\u{FEFF}` from string slice if present.
-pub(crate) fn strip_bom_str(s: &str) -> &str {
-    s.strip_prefix('\u{FEFF}').unwrap_or(s)
+pub(crate) fn strip_bom_str(mut s: &str) -> &str {
+    while let Some(stripped) = s.strip_prefix('\u{FEFF}') {
+        s = stripped;
+    }
+    s
 }
 
 pub(crate) fn validate_entry_name(name: &str) -> Result<(), OpenPackError> {
@@ -179,21 +181,24 @@ pub(crate) fn validate_entry_name_raw(name: &[u8]) -> Result<(), OpenPackError> 
         return Err(OpenPackError::InvalidArchive("empty entry name".into()));
     }
 
-    // Reject raw bytes that encode traversal sequences regardless of text encoding or BOM prefix.
-    if clean.windows(2).any(|w| w == b"..") || clean.contains(&b'\\') || clean.starts_with(b"/") {
-        let name_str = String::from_utf8_lossy(clean);
-        if contains_parent_traversal(&name_str) {
-            return Err(OpenPackError::ZipSlip(name_str.into_owned()));
-        }
-        if clean.starts_with(b"/") {
-            return Err(OpenPackError::ZipSlip(name_str.into_owned()));
-        }
-        if clean.contains(&b'\\') {
-            return Err(OpenPackError::InvalidArchive(
-                "backslash in entry name".into(),
-            ));
-        }
+    if clean.contains(&b'\\') {
+        return Err(OpenPackError::InvalidArchive(
+            "backslash in entry name".into(),
+        ));
     }
+
+    if clean.starts_with(b"/") {
+        let name_str = String::from_utf8_lossy(clean);
+        return Err(OpenPackError::ZipSlip(name_str.into_owned()));
+    }
+
+    if clean.len() >= 2 && clean[0].is_ascii_alphabetic() && clean[1] == b':' {
+        let name_str = String::from_utf8_lossy(clean);
+        return Err(OpenPackError::ZipSlip(name_str.into_owned()));
+    }
+
+    let name_str = String::from_utf8_lossy(clean);
+    validate_entry_name(&name_str)?;
 
     Ok(())
 }
@@ -308,5 +313,32 @@ mod tests {
         let used =
             deflate_input_bytes_used(&compressed).expect("deflate_input_bytes_used must succeed");
         assert_eq!(used, compressed.len() as u64);
+    }
+}
+#[cfg(test)]
+mod security_tests {
+    use super::*;
+
+    #[test]
+    fn validate_entry_name_raw_rejects_windows_drive_letter_and_percent_traversal() {
+        assert!(matches!(
+            validate_entry_name_raw(b"C:/Windows/System.ini"),
+            Err(OpenPackError::ZipSlip(_))
+        ));
+        assert!(matches!(
+            validate_entry_name_raw(b"D:evil"),
+            Err(OpenPackError::ZipSlip(_))
+        ));
+        assert!(matches!(
+            validate_entry_name_raw(b"%2e%2e/etc/passwd"),
+            Err(OpenPackError::ZipSlip(_))
+        ));
+        assert!(matches!(
+            validate_entry_name_raw(b"\xEF\xBB\xBF\xEF\xBB\xBF../etc/passwd"),
+            Err(OpenPackError::ZipSlip(_))
+        ));
+
+        assert_eq!(strip_bom(b"\xEF\xBB\xBF\xEF\xBB\xBFhello"), b"hello");
+        assert_eq!(strip_bom_str("\u{FEFF}\u{FEFF}hello"), "hello");
     }
 }

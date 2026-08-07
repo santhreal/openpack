@@ -1180,3 +1180,33 @@ fn windows_absolute_paths_are_rejected() {
     let pack = OpenPack::open_default(&archive.path).expect("open");
     assert!(matches!(pack.entries(), Err(OpenPackError::ZipSlip(_))));
 }
+#[test]
+fn entry_name_validation_rejects_windows_drive_letter_and_percent_traversal() {
+    let archive = Scratch::new("drive-percent.zip");
+    write_zip(
+        &archive.path,
+        &[
+            ("D:evil", b"bad", CompressionMethod::Stored),
+            ("%2e%2e/etc/passwd", b"bad", CompressionMethod::Stored),
+        ],
+    );
+    let pack = OpenPack::open_default(&archive.path).expect("open");
+    assert!(matches!(pack.entries(), Err(OpenPackError::ZipSlip(_))));
+}
+
+#[test]
+fn contains_enforces_full_archive_validation() {
+    let archive = Scratch::new("contains-zipslip.zip");
+    write_zip(
+        &archive.path,
+        &[
+            ("valid.txt", b"ok", CompressionMethod::Stored),
+            ("../evil.txt", b"bad", CompressionMethod::Stored),
+        ],
+    );
+    let pack = OpenPack::open_default(&archive.path).expect("open");
+    assert!(matches!(
+        pack.contains("valid.txt"),
+        Err(OpenPackError::ZipSlip(_))
+    ));
+}

@@ -148,6 +148,9 @@ fn first_start_tag_range(xml: &str) -> Option<(usize, usize)> {
         } else if xml[pos..].starts_with("<!") {
             let end = xml[pos..].find('>')? + 1;
             pos += end;
+        } else if xml[pos..].starts_with("</") {
+            let end = xml[pos..].find('>')? + 1;
+            pos += end;
         } else {
             let end = xml[pos..].find('>')? + 1;
             return Some((pos, pos + end));
@@ -181,27 +184,75 @@ fn extract_xml_attr(xml: &str, attr: &str) -> Option<String> {
     last_attr_value_in_tag(tag, attr)
 }
 
+fn find_start_tag(xml: &str, tag_name: &str) -> Option<(usize, usize)> {
+    let mut pos = 0;
+    while pos < xml.len() {
+        let rest = &xml[pos..];
+        let lt = rest.find('<')?;
+        pos += lt;
+        if xml[pos..].starts_with("<!--") {
+            let end = xml[pos..].find("-->")? + 3;
+            pos += end;
+        } else if xml[pos..].starts_with("<?") {
+            let end = xml[pos..].find("?>")? + 2;
+            pos += end;
+        } else if xml[pos..].starts_with("<!") {
+            let end = xml[pos..].find('>')? + 1;
+            pos += end;
+        } else if xml[pos..].starts_with("</") {
+            let end = xml[pos..].find('>')? + 1;
+            pos += end;
+        } else {
+            let end = xml[pos..].find('>')? + 1;
+            let tag_content = &xml[pos + 1..pos + end];
+            let name_end = tag_content
+                .find(|c: char| c.is_whitespace() || c == '/' || c == '>')
+                .unwrap_or(tag_content.len());
+            let found_name = &tag_content[..name_end];
+            if found_name == tag_name {
+                return Some((pos, pos + end));
+            }
+            pos += end;
+        }
+    }
+    None
+}
+
 #[cfg(feature = "apk")]
 fn extract_block_attr(xml: &str, block: &str, attr: &str) -> Option<String> {
-    let start_tag = format!("<{}", block);
-    let block_start = xml.find(&start_tag)?;
-    if xml.as_bytes().get(block_start + 1) == Some(&b'/') {
-        // Closing tag \u003c/block> has no attributes.
-        return None;
-    }
-    let after = block_start + start_tag.len();
-    let tag_end = xml[after..].find('>')? + after + 1;
-    let tag = &xml[block_start..tag_end];
+    let (start, end) = find_start_tag(xml, block)?;
+    let tag = &xml[start..end];
     last_attr_value_in_tag(tag, attr)
 }
 
 #[cfg(feature = "ipa")]
+fn strip_xml_comments(xml: &str) -> String {
+    let mut result = String::with_capacity(xml.len());
+    let mut pos = 0;
+    while pos < xml.len() {
+        if let Some(start) = xml[pos..].find("<!--") {
+            result.push_str(&xml[pos..pos + start]);
+            if let Some(end) = xml[pos + start..].find("-->") {
+                pos += start + end + 3;
+            } else {
+                break;
+            }
+        } else {
+            result.push_str(&xml[pos..]);
+            break;
+        }
+    }
+    result
+}
+
+#[cfg(feature = "ipa")]
 pub(crate) fn parse_info_plist(xml: &str) -> Option<crate::IpaInfoPlist> {
-    let clean_xml = crate::security::strip_bom_str(xml);
+    let clean_xml_str = crate::security::strip_bom_str(xml);
+    let clean_xml = strip_xml_comments(clean_xml_str);
     Some(crate::IpaInfoPlist {
-        bundle_identifier: parse_plist_key(clean_xml, "CFBundleIdentifier"),
-        bundle_version: parse_plist_key(clean_xml, "CFBundleShortVersionString"),
-        executable: parse_plist_key(clean_xml, "CFBundleExecutable"),
+        bundle_identifier: parse_plist_key(&clean_xml, "CFBundleIdentifier"),
+        bundle_version: parse_plist_key(&clean_xml, "CFBundleShortVersionString"),
+        executable: parse_plist_key(&clean_xml, "CFBundleExecutable"),
     })
 }
 
@@ -223,6 +274,22 @@ fn parse_plist_key(xml: &str, key: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "apk")]
+    #[test]
+    fn parse_android_manifest_skips_closing_tags_and_comments() {
+        let xml = b"</manifest package=\"fake\"><manifest package=\"com.real.app\"><!-- <uses-sdk android:minSdkVersion=\"10\" /> --><uses-sdk android:minSdkVersion=\"21\" /></manifest>";
+        let manifest = super::parse_android_manifest(xml).expect("parse manifest");
+        assert_eq!(manifest.package, "com.real.app");
+        assert_eq!(manifest.min_sdk.as_deref(), Some("21"));
+    }
+
+    #[cfg(feature = "ipa")]
+    #[test]
+    fn parse_info_plist_skips_commented_keys() {
+        let xml = "<!-- <key>CFBundleIdentifier</key><string>com.fake.app</string> --><dict><key>CFBundleIdentifier</key><string>com.real.app</string></dict>";
+        let plist = super::parse_info_plist(xml).expect("parse plist");
+        assert_eq!(plist.bundle_identifier.as_deref(), Some("com.real.app"));
+    }
     #[cfg(feature = "apk")]
     #[test]
     fn xml_attr_ignores_comments_and_takes_last_duplicate() {

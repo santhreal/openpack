@@ -89,19 +89,8 @@ impl OpenPack {
     /// Returns `true` if the archive contains an entry with the given name.
     pub fn contains(&self, name: &str) -> Result<bool, OpenPackError> {
         validate_entry_name(name)?;
-        let mut archive = self.open_zip_reader()?;
-        enforce_entry_count_limit(archive.len(), &self.limits)?;
-
-        let result = match archive.by_name(name) {
-            Ok(file) => {
-                reject_special_file_entry(&file)?;
-                Ok(true)
-            }
-            Err(zip::result::ZipError::FileNotFound) => Ok(false),
-            Err(err) => Err(OpenPackError::from(err)),
-        };
-
-        result
+        let entries = self.entries()?;
+        Ok(entries.iter().any(|e| e.name == name))
     }
 
     /// Reads the raw bytes of a single entry after its metadata has already
@@ -146,7 +135,8 @@ impl OpenPack {
                 if let Some(start) = file.data_start() {
                     let zip_data = self.zip_data()?;
                     let start = usize::try_from(start).unwrap_or(zip_data.len());
-                    deflate_input_bytes_used(&zip_data[start..]).ok_or_else(|| {
+                    let slice = zip_data.get(start..).unwrap_or(&[]);
+                    deflate_input_bytes_used(slice).ok_or_else(|| {
                         OpenPackError::InvalidArchive(format!(
                             "entry '{}' failed deflate validation; compressed data may be malformed or truncated",
                             name

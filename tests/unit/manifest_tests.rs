@@ -54,4 +54,5 @@ mod tests {
         assert_eq!(summary.background_scripts, vec!["bg.js"]);
         assert_eq!(summary.content_scripts, vec!["content.js".to_string()]);
     }
+
 }

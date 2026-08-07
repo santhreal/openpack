@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.7] - 2026-08-07
+
+### Security & Safety
+- Stripped stacked multi-BOM prefixes (`0xEF 0xBB 0xBF` / `\u{FEFF}`) in `strip_bom` and `strip_bom_str` to prevent multi-BOM obfuscation attacks.
+- Hardened `validate_entry_name_raw` to enforce raw byte checks against Windows drive letters (`C:`), leading slashes, backslashes, null bytes, and percent-encoded parent traversals.
+- Updated `OpenPack::contains` to validate the complete archive metadata via `entries()`, ensuring limit violations, ZipSlip entries, duplicate filenames, and special files are detected rather than bypassed.
+- Handled out-of-bounds `data_start` offsets safely with `zip_data.get(start..)` to prevent slice index panics in deflate validation.
+- Hardened XML manifest and plist parsing (`parse_android_manifest`, `parse_info_plist`, `extract_block_attr`) to skip XML comments, ignore closing tags, and perform exact start-tag name matching.
+
 ## [0.2.6] - 2026-08-07
 
 ### Changed
