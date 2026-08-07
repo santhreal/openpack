@@ -12,7 +12,8 @@ impl OpenPack {
         }
 
         let bytes = self.read_entry(name)?;
-        let value = serde_json::from_slice(&bytes).map_err(|err| {
+        let clean_bytes = crate::security::strip_bom(&bytes);
+        let value = serde_json::from_slice(clean_bytes).map_err(|err| {
             OpenPackError::InvalidArchive(format!("invalid JSON in '{name}': {err}"))
         })?;
         Ok(Some(value))
@@ -25,7 +26,8 @@ impl OpenPack {
         }
 
         let bytes = self.read_entry(name)?;
-        let text = String::from_utf8(bytes).map_err(|err| {
+        let clean_bytes = crate::security::strip_bom(&bytes);
+        let text = String::from_utf8(clean_bytes.to_vec()).map_err(|err| {
             OpenPackError::InvalidArchive(format!("entry '{name}' is not valid UTF-8: {err}"))
         })?;
         Ok(Some(text))

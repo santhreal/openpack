@@ -258,3 +258,72 @@ fn zip_bomb_bypass_via_forged_local_header_compressed_size() {
         "read_entry must reject zip bomb with forged local header compressed_size, got {result:?}"
     );
 }
+
+#[test]
+fn bom_prefixed_zip_slip_entry_rejected() {
+    let archive = Scratch::new("zip");
+    write_zip(
+        &archive.path,
+        &[
+            ("\u{FEFF}/etc/passwd", b"root", CompressionMethod::Stored),
+            ("\u{FEFF}C:/Windows/System32/cmd.exe", b"exe", CompressionMethod::Stored),
+            ("\u{FEFF}../parent.txt", b"parent", CompressionMethod::Stored),
+        ],
+    );
+
+    let pack = OpenPack::open_default(&archive.path).unwrap();
+
+    let err1 = pack.read_entry("\u{FEFF}/etc/passwd").unwrap_err();
+    assert!(
+        matches!(err1, OpenPackError::ZipSlip(_)),
+        "Expected ZipSlip for BOM-prefixed root path, got {err1:?}"
+    );
+
+    let err2 = pack.read_entry("\u{FEFF}C:/Windows/System32/cmd.exe").unwrap_err();
+    assert!(
+        matches!(err2, OpenPackError::ZipSlip(_)),
+        "Expected ZipSlip for BOM-prefixed Windows drive path, got {err2:?}"
+    );
+
+    let err3 = pack.read_entry("\u{FEFF}../parent.txt").unwrap_err();
+    assert!(
+        matches!(err3, OpenPackError::ZipSlip(_)),
+        "Expected ZipSlip for BOM-prefixed parent traversal, got {err3:?}"
+    );
+}
+
+#[test]
+fn bom_prefixed_json_and_text_read() {
+    let archive = Scratch::new("zip");
+    let json_bytes = b"\xEF\xBB\xBF{\"name\":\"openpack\",\"version\":\"0.2.5\"}";
+    let text_bytes = b"\xEF\xBB\xBFhello world";
+
+    write_zip(
+        &archive.path,
+        &[
+            ("package.json", json_bytes, CompressionMethod::Stored),
+            ("greeting.txt", text_bytes, CompressionMethod::Stored),
+        ],
+    );
+
+    let pack = OpenPack::open_default(&archive.path).unwrap();
+
+    let summary: serde_json::Value = pack
+        .read_json_entry("package.json")
+        .expect("read json")
+        .expect("json present");
+    assert_eq!(summary["name"], "openpack");
+
+    let text = pack
+        .read_text_entry("greeting.txt")
+        .expect("read text")
+        .expect("text present");
+    assert_eq!(text, "hello world");
+}
+
+#[test]
+fn bom_prefixed_toml_limits_parsed() {
+    let toml_str = "\u{FEFF}\nmax_archive_size = 104857600\nmax_entry_uncompressed_size = 10485760\nmax_total_uncompressed_size = 52428800\nmax_entries = 1000\nmax_compression_ratio = 50.0\n";
+    let limits = Limits::from_toml(toml_str).expect("BOM-prefixed TOML should parse");
+    assert_eq!(limits.max_entries, 1000);
+}

@@ -100,6 +100,20 @@ pub(crate) fn enforce_entry_count_limit(
     }
 }
 
+/// Strips UTF-8 Byte Order Mark (BOM) `0xEF 0xBB 0xBF` from raw bytes if present.
+pub(crate) fn strip_bom(bytes: &[u8]) -> &[u8] {
+    if bytes.starts_with(b"\xEF\xBB\xBF") {
+        &bytes[3..]
+    } else {
+        bytes
+    }
+}
+
+/// Strips UTF-8 Byte Order Mark (BOM) `\u{FEFF}` from string slice if present.
+pub(crate) fn strip_bom_str(s: &str) -> &str {
+    s.strip_prefix('\u{FEFF}').unwrap_or(s)
+}
+
 pub(crate) fn validate_entry_name(name: &str) -> Result<(), OpenPackError> {
     if name.is_empty() {
         return Err(OpenPackError::InvalidArchive("empty entry name".into()));
@@ -111,19 +125,25 @@ pub(crate) fn validate_entry_name(name: &str) -> Result<(), OpenPackError> {
         ));
     }
 
-    let decoded = fully_percent_decode(name)?;
+    let clean_name = strip_bom_str(name);
+    if clean_name.is_empty() {
+        return Err(OpenPackError::InvalidArchive("empty entry name".into()));
+    }
 
-    if name.contains('\\') || decoded.contains('\\') {
+    let decoded = fully_percent_decode(clean_name)?;
+    let clean_decoded = strip_bom_str(&decoded);
+
+    if clean_name.contains('\\') || clean_decoded.contains('\\') {
         return Err(OpenPackError::InvalidArchive(
             "backslash in entry name".into(),
         ));
     }
 
-    if contains_parent_traversal(name) || contains_parent_traversal(&decoded) {
+    if contains_parent_traversal(clean_name) || contains_parent_traversal(clean_decoded) {
         return Err(OpenPackError::ZipSlip(name.to_string()));
     }
 
-    if Path::new(&decoded).components().any(|component| {
+    if Path::new(clean_decoded).components().any(|component| {
         matches!(
             component,
             Component::Prefix(_) | Component::RootDir | Component::ParentDir
@@ -132,7 +152,7 @@ pub(crate) fn validate_entry_name(name: &str) -> Result<(), OpenPackError> {
         return Err(OpenPackError::ZipSlip(name.to_string()));
     }
 
-    if is_windows_absolute(&decoded) {
+    if is_windows_absolute(clean_decoded) {
         return Err(OpenPackError::ZipSlip(name.to_string()));
     }
 
@@ -154,16 +174,21 @@ pub(crate) fn validate_entry_name_raw(name: &[u8]) -> Result<(), OpenPackError> 
         ));
     }
 
-    // Reject raw bytes that encode traversal sequences regardless of text encoding.
-    if name.windows(2).any(|w| w == b"..") || name.contains(&b'\\') || name.starts_with(b"/") {
-        let name_str = String::from_utf8_lossy(name);
+    let clean = strip_bom(name);
+    if clean.is_empty() {
+        return Err(OpenPackError::InvalidArchive("empty entry name".into()));
+    }
+
+    // Reject raw bytes that encode traversal sequences regardless of text encoding or BOM prefix.
+    if clean.windows(2).any(|w| w == b"..") || clean.contains(&b'\\') || clean.starts_with(b"/") {
+        let name_str = String::from_utf8_lossy(clean);
         if contains_parent_traversal(&name_str) {
             return Err(OpenPackError::ZipSlip(name_str.into_owned()));
         }
-        if name.starts_with(b"/") {
+        if clean.starts_with(b"/") {
             return Err(OpenPackError::ZipSlip(name_str.into_owned()));
         }
-        if name.contains(&b'\\') {
+        if clean.contains(&b'\\') {
             return Err(OpenPackError::InvalidArchive(
                 "backslash in entry name".into(),
             ));

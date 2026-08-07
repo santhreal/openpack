@@ -57,8 +57,9 @@ impl Limits {
     /// let limits = Limits::from_toml(toml_str).unwrap();
     /// ```
     pub fn from_toml(raw: &str) -> Result<Self, OpenPackError> {
+        let clean_raw = crate::security::strip_bom_str(raw);
         let limits: Self =
-            toml::from_str(raw).map_err(|err| OpenPackError::InvalidConfig(err.to_string()))?;
+            toml::from_str(clean_raw).map_err(|err| OpenPackError::InvalidConfig(err.to_string()))?;
         limits.validate()?;
         Ok(limits)
     }

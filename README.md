@@ -1,6 +1,6 @@
 # openpack
 
-Part of [Santh](https://santh.dev) - open source Rust security and infrastructure tooling. Follow [@SanthProject](https://x.com/SanthProject) on X.
+Part of [Santh](https://santh.dev) - open source Rust security and infrastructure tooling.
 
 Safe archive reader for ZIP-derived container formats. It reads ZIP, JAR, APK, IPA, and CRX files with mandatory guardrails against Zip Slip, zip bombs, and resource exhaustion.
 

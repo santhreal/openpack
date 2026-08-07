@@ -118,7 +118,8 @@ pub fn summarize_package_json(value: serde_json::Value) -> PackageJsonSummary {
 
 #[cfg(feature = "apk")]
 pub(crate) fn parse_android_manifest(bytes: &[u8]) -> Option<crate::AndroidManifest> {
-    let xml = from_utf8(bytes).ok()?;
+    let clean_bytes = crate::security::strip_bom(bytes);
+    let xml = from_utf8(clean_bytes).ok()?;
     let package = extract_xml_attr(xml, "package")?;
     Some(crate::AndroidManifest {
         package,
@@ -196,10 +197,11 @@ fn extract_block_attr(xml: &str, block: &str, attr: &str) -> Option<String> {
 
 #[cfg(feature = "ipa")]
 pub(crate) fn parse_info_plist(xml: &str) -> Option<crate::IpaInfoPlist> {
+    let clean_xml = crate::security::strip_bom_str(xml);
     Some(crate::IpaInfoPlist {
-        bundle_identifier: parse_plist_key(xml, "CFBundleIdentifier"),
-        bundle_version: parse_plist_key(xml, "CFBundleShortVersionString"),
-        executable: parse_plist_key(xml, "CFBundleExecutable"),
+        bundle_identifier: parse_plist_key(clean_xml, "CFBundleIdentifier"),
+        bundle_version: parse_plist_key(clean_xml, "CFBundleShortVersionString"),
+        executable: parse_plist_key(clean_xml, "CFBundleExecutable"),
     })
 }
 
